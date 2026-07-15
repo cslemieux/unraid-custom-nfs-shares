@@ -33,7 +33,7 @@ class NfsValidateOptionsTest extends TestCase
         require_once __DIR__ . '/../../source/usr/local/emhttp/plugins/custom.nfs.shares/include/ConfigRegistry.php';
         require_once __DIR__ . '/../../source/usr/local/emhttp/plugins/custom.nfs.shares/include/TestModeDetector.php';
 
-        ConfigRegistry::setConfigBase($this->tmpBase . '/config');
+        ConfigRegistry::setConfigBase($this->tmpBase . '/boot/config');
         TestModeDetector::reset();
 
         require_once __DIR__ . '/../../source/usr/local/emhttp/plugins/custom.nfs.shares/include/lib.php';

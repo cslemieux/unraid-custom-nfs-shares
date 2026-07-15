@@ -28,7 +28,7 @@ class NfsShareCrudTest extends TestCase
     protected function setUp(): void
     {
         $this->tmpBase    = sys_get_temp_dir() . '/nfs-int-crud-' . getmypid() . '-' . uniqid();
-        $this->configBase = $this->tmpBase . '/config';
+        $this->configBase = $this->tmpBase . '/boot/config';
 
         // Directory tree the harness needs.
         mkdir($this->tmpBase . '/mnt/user', 0755, true);

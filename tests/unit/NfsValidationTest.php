@@ -33,8 +33,8 @@ class NfsValidationTest extends TestCase
         require_once __DIR__ . '/../../source/usr/local/emhttp/plugins/custom.nfs.shares/include/ConfigRegistry.php';
         require_once __DIR__ . '/../../source/usr/local/emhttp/plugins/custom.nfs.shares/include/TestModeDetector.php';
 
-        // config lives at <tmpBase>/config; harness root is <tmpBase> (has /mnt).
-        ConfigRegistry::setConfigBase($this->tmpBase . '/config');
+        // config lives at <tmpBase>/boot/config (canonical 2-level layout); harness root is <tmpBase> (has /mnt).
+        ConfigRegistry::setConfigBase($this->tmpBase . '/boot/config');
         TestModeDetector::reset();
 
         require_once __DIR__ . '/../../source/usr/local/emhttp/plugins/custom.nfs.shares/include/lib.php';

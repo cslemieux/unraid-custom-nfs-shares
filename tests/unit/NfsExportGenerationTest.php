@@ -31,7 +31,7 @@ class NfsExportGenerationTest extends TestCase
         require_once __DIR__ . '/../../source/usr/local/emhttp/plugins/custom.nfs.shares/include/ConfigRegistry.php';
         require_once __DIR__ . '/../../source/usr/local/emhttp/plugins/custom.nfs.shares/include/TestModeDetector.php';
 
-        ConfigRegistry::setConfigBase($this->tmpBase . '/config');
+        ConfigRegistry::setConfigBase($this->tmpBase . '/boot/config');
         TestModeDetector::reset();
 
         require_once __DIR__ . '/../../source/usr/local/emhttp/plugins/custom.nfs.shares/include/lib.php';
@@ -327,12 +327,12 @@ class NfsExportGenerationTest extends TestCase
 
     public function testSaveSharesPersistsAssignedFsidRoundTrip(): void
     {
-        mkdir($this->tmpBase . '/config/plugins/custom.nfs.shares', 0755, true);
+        mkdir($this->tmpBase . '/boot/config/plugins/custom.nfs.shares', 0755, true);
         $this->assertTrue(saveShares(
             [['name' => 'rt', 'path' => '/mnt/user/rt', 'clients' => ['*']]],
-            $this->tmpBase . '/config'
+            $this->tmpBase . '/boot/config'
         ));
-        $loaded = loadShares($this->tmpBase . '/config');
+        $loaded = loadShares($this->tmpBase . '/boot/config');
         $this->assertSame(ConfigRegistry::FSID_AUTO_BASE, $loaded[0]['fsid'],
             'Assigned fsid must survive the save/load round trip');
     }

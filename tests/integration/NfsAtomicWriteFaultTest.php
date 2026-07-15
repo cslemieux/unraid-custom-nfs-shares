@@ -36,7 +36,7 @@ class NfsAtomicWriteFaultTest extends TestCase
     protected function setUp(): void
     {
         $this->tmpBase           = sys_get_temp_dir() . '/nfs-atomic-fault-' . getmypid() . '-' . uniqid();
-        $this->configBase        = $this->tmpBase . '/config';
+        $this->configBase        = $this->tmpBase . '/boot/config';
         $this->exportsDir        = $this->tmpBase . '/etc/exports.d';
         $this->exportsFile       = $this->exportsDir . '/custom-nfs-shares.exports';
         $this->persistentDir     = $this->configBase . '/plugins/custom.nfs.shares';

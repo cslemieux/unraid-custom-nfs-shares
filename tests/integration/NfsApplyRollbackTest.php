@@ -20,7 +20,7 @@ class NfsApplyRollbackTest extends TestCase
     protected function setUp(): void
     {
         $this->tmpBase    = sys_get_temp_dir() . '/nfs-int-rb-' . getmypid() . '-' . uniqid();
-        $this->configBase = $this->tmpBase . '/config';
+        $this->configBase = $this->tmpBase . '/boot/config';
         mkdir($this->tmpBase . '/mnt/user', 0755, true);
         mkdir($this->configBase . '/plugins/custom.nfs.shares', 0755, true);
         mkdir($this->tmpBase . '/etc/exports.d', 0755, true);
@@ -97,7 +97,7 @@ exit 0
 
     private function assertNoTmpFiles(): void
     {
-        $f = array_merge(glob($this->tmpBase . '/etc/exports.d/*.tmp.*') ?: [], glob($this->tmpBase . '/config/plugins/custom.nfs.shares/*.tmp.*') ?: []);
+        $f = array_merge(glob($this->tmpBase . '/etc/exports.d/*.tmp.*') ?: [], glob($this->tmpBase . '/boot/config/plugins/custom.nfs.shares/*.tmp.*') ?: []);
         $this->assertEmpty($f, 'No *.tmp.* files must remain');
     }
 
