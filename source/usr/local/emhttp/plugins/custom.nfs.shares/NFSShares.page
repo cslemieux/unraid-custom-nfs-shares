@@ -1,0 +1,356 @@
+Menu="Tasks:86"
+Title="NFS Shares"
+Tag="share-alt"
+Icon="share-alt"
+Code="f1e0"
+Type="xmenu"
+Tabs="false"
+Cond="(@parse_ini_file('/boot/config/plugins/custom.nfs.shares/settings.cfg')['MENU_PLACEMENT'] ?? 'topbar') !== 'settings'"
+---
+<?php
+require_once '/usr/local/emhttp/plugins/custom.nfs.shares/include/lib.php';
+
+/** @var array<int,array<string,mixed>> $shares */
+$shares = loadShares();
+
+$version = file_exists('/usr/local/emhttp/plugins/custom.nfs.shares/VERSION')
+    ? trim(file_get_contents('/usr/local/emhttp/plugins/custom.nfs.shares/VERSION') ?: '')
+    : 'unknown';
+
+$pluginEnabled = isPluginEnabled();
+?>
+
+<link rel="stylesheet" href="/plugins/custom.nfs.shares/css/feedback.css">
+<link rel="stylesheet" href="/plugins/custom.nfs.shares/css/nfs.css">
+<link rel="stylesheet" href="/webGui/styles/jquery.switchbutton.css">
+<script src="/plugins/custom.nfs.shares/js/feedback.js"></script>
+<script src="/webGui/javascript/jquery.switchbutton.js"></script>
+
+<style>
+.nfs-shares-table { table-layout: fixed; }
+.nfs-shares-table th:nth-child(1) { width: 70px; }    /* Enable   */
+.nfs-shares-table th:nth-child(2) { width: 130px; }   /* Name     */
+.nfs-shares-table th:nth-child(3) { width: 220px; }   /* Path     */
+.nfs-shares-table th:nth-child(4) { width: 160px; }   /* Clients  */
+.nfs-shares-table th:nth-child(5) { width: 140px; }   /* Options  */
+.nfs-shares-table th:nth-child(6) { width: 170px; text-align:right; } /* Actions */
+.nfs-shares-table td:last-child { text-align:right; white-space:nowrap; }
+.share-disabled { opacity: 0.5; }
+</style>
+
+<?php if ($var['mdState'] === 'STARTED'): ?>
+
+<?php if (!$pluginEnabled): ?>
+<div class="disabled-banner">
+    <i class="fa fa-exclamation-triangle"></i>
+    _(Plugin is disabled. Custom NFS exports are not being applied.)_
+    <a href="/NFSSharesSettings">_(Enable in Settings)_</a>
+</div>
+<?php endif; ?>
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+    <h2 style="margin:0;">_(NFS Exports)_ <span style="font-size:0.6em;color:var(--text-muted-color,#999);">v<?= htmlspecialchars($version) ?></span></h2>
+    <div style="display:flex;align-items:center;gap:12px;">
+        <input type="button" id="nfs-reload-btn" value="_(Reload NFS)_"
+               onclick="nfsReload()">
+        <input type="button" value="_(Export Config)_"
+               onclick="nfsExportConfig()">
+        <input type="button" value="_(Import Config)_"
+               onclick="nfsImportConfig()">
+        <input type="button" value="_(Settings)_"
+               onclick="location.href='/NFSSharesSettings'">
+    </div>
+</div>
+
+<div class="TableContainer--no-min-width">
+<table class="tablesorter shift nfs-shares-table">
+<thead>
+<tr>
+    <th>_(Enable)_</th>
+    <th>_(Name)_</th>
+    <th>_(Path)_</th>
+    <th>_(Clients)_</th>
+    <th>_(Options)_</th>
+    <th>_(Actions)_</th>
+</tr>
+</thead>
+<tbody>
+<?php if (empty($shares)): ?>
+<tr>
+    <td colspan="6" style="text-align:center;padding:20px;">
+        <em>_(No NFS exports configured yet.)_</em>
+    </td>
+</tr>
+<?php else: ?>
+<?php foreach ($shares as $share):
+    $enabled      = isset($share['enabled']) ? (bool) $share['enabled'] : true;
+    $name         = (string) ($share['name']   ?? '');
+    $path         = (string) ($share['path']   ?? '');
+    $access       = (string) ($share['access'] ?? 'rw');
+    $sync         = (string) ($share['sync']   ?? 'sync');
+    $squash       = (string) ($share['squash'] ?? 'root_squash');
+
+    /** @var string[] $clients */
+    $clients      = is_array($share['clients'] ?? null) ? $share['clients'] : [];
+    $clientSummary = count($clients) === 1
+        ? htmlspecialchars($clients[0])
+        : htmlspecialchars(count($clients) . ' clients');
+    $optSummary   = htmlspecialchars($access . ', ' . $sync . ', ' . $squash);
+?>
+<tr class="<?= $enabled ? '' : 'share-disabled' ?>">
+    <td>
+        <input type="checkbox" class="nfs-share-toggle"
+               data-share="<?= htmlspecialchars($name, ENT_QUOTES) ?>"
+               <?= $enabled ? 'checked' : '' ?>>
+    </td>
+    <td>
+        <span><i class="fa fa-folder orange-text" style="margin-right:4px;"></i></span>
+        <span><?= htmlspecialchars($name) ?></span>
+    </td>
+    <td><?= htmlspecialchars($path) ?></td>
+    <td title="<?= htmlspecialchars(implode(', ', $clients)) ?>"><?= $clientSummary ?></td>
+    <td><?= $optSummary ?></td>
+    <td>
+        <a href="/NFSSharesUpdate?name=<?= urlencode($name) ?>">
+            <i class="fa fa-edit"></i> _(Edit)_
+        </a>
+        <span style="margin:0 4px;">|</span>
+        <a href="#" class="js-nfs-delete"
+           data-share-name="<?= htmlspecialchars($name, ENT_QUOTES) ?>">
+            <i class="fa fa-trash"></i> _(Delete)_
+        </a>
+    </td>
+</tr>
+<?php endforeach; ?>
+<?php endif; ?>
+</tbody>
+</table>
+</div>
+
+<div style="display:flex;justify-content:flex-end;margin-top:12px;">
+    <input type="button" value="_(Add Export)_"
+           onclick="location.href='/NFSSharesAdd'">
+</div>
+
+<?php else: ?>
+<p>_(Array is stopped)_!</p>
+<?php endif; ?>
+
+<script>
+$(function () {
+    // ── Delegated delete handler — uses data attribute to avoid inline-onclick
+    // htmlspecialchars not escaping newlines/control chars in JS string context.
+    $(document).on('click', '.js-nfs-delete', function (e) {
+        e.preventDefault();
+        nfsDeleteShare($(this).data('shareName'));
+    });
+
+    // ── Enable/disable toggles (AC-NFS-01.4): post to api.php?action=toggle,
+    // update row visual state from JSON response WITHOUT full page reload.
+    $('.nfs-share-toggle').switchButton({
+        on_label:  '',
+        off_label: ''
+    }).on('change', function () {
+        var $toggle  = $(this);
+        var name     = $toggle.data('share');
+        var enabled  = $toggle.is(':checked');
+        var $row     = $toggle.closest('tr');
+        var $wrapper = $toggle.closest('.switch-button-background');
+
+        // Disable during the request to prevent double-clicks.
+        $toggle.prop('disabled', true);
+        $wrapper.css('opacity', '0.6');
+
+        $.post('/plugins/custom.nfs.shares/api.php', {
+            action:  'toggle',
+            name:    name,
+            enabled: enabled ? 'true' : 'false'
+        }, function (response) {
+            $toggle.prop('disabled', false);
+            $wrapper.css('opacity', '');
+
+            if (response.success) {
+                // Update row opacity from the authoritative server-side value.
+                $row.toggleClass('share-disabled', !response.enabled);
+                if (response.warning) {
+                    showWarning(response.warning);
+                } else {
+                    showSuccess(enabled ? '_(Export enabled)_' : '_(Export disabled)_');
+                }
+            } else {
+                // Revert toggle on error.
+                $toggle.prop('checked', !enabled).trigger('change.switchButton');
+                showError(response.error || '_(Failed to toggle export)_');
+            }
+        }, 'json').fail(function () {
+            $toggle.prop('disabled', false);
+            $wrapper.css('opacity', '');
+            $toggle.prop('checked', !enabled).trigger('change.switchButton');
+            showError('_(Failed to toggle export)_');
+        });
+    });
+});
+
+function nfsDeleteShare(shareName) {
+    swal({
+        title:             '_(Confirm Delete)_',
+        text:              '_(Are you sure you want to delete the export)_ "' + shareName + '"?',
+        type:              'warning',
+        showCancelButton:  true,
+        confirmButtonText: '_(Delete)_',
+        cancelButtonText:  '_(Cancel)_'
+    }, function (confirmed) {
+        if (!confirmed) { return; }
+        $.post('/plugins/custom.nfs.shares/api.php', {
+            action: 'delete',
+            name:   shareName
+        }, function (response) {
+            if (response.success) {
+                showSuccess(response.message || '_(Export deleted)_');
+                setTimeout(function () { location.reload(); }, 1000);
+            } else {
+                showError(response.error || '_(Failed to delete export)_');
+            }
+        }, 'json').fail(function (xhr) {
+            var msg = '_(Error deleting export)_';
+            try {
+                var r = JSON.parse(xhr.responseText);
+                if (r.error) { msg = r.error; }
+            } catch (e) { /* ignore */ }
+            showError(msg);
+        });
+    });
+}
+
+function nfsReload() {
+    var $btn = $('#nfs-reload-btn');
+    var orig = $btn.val();
+    $btn.prop('disabled', true).val('_(Reloading...)_');
+
+    $.post('/plugins/custom.nfs.shares/api.php', { action: 'reload' }, function (response) {
+        if (response.success) {
+            showSuccess('_(NFS exports reloaded successfully)_');
+        } else if (response.escalated) {
+            showError('_(NFS reload failed and rollback also failed — manual intervention required: )_' + response.error);
+        } else {
+            showError(response.error || '_(Failed to reload NFS exports)_');
+        }
+        $btn.prop('disabled', false).val(orig);
+    }, 'json').fail(function () {
+        showError('_(Failed to reload NFS exports)_');
+        $btn.prop('disabled', false).val(orig);
+    });
+}
+
+function nfsExportConfig() {
+    $.get('/plugins/custom.nfs.shares/api.php?action=exportConfig', function (response) {
+        if (response.success) {
+            var json = JSON.stringify(response.config, null, 2);
+            window._nfsExportedConfig = json;
+            swal({
+                title:             '_(Export Configuration)_',
+                text:              '<textarea readonly style="width:100%;height:200px;">'
+                                   + json + '</textarea>'
+                                   + '<br><button type="button" class="btn" id="nfsDownloadCfgBtn"'
+                                   + ' style="margin-top:10px">_(Download as File)_</button>',
+                html:              true,
+                confirmButtonText: '_(Close)_'
+            });
+            setTimeout(function () {
+                $('#nfsDownloadCfgBtn').on('click', function () {
+                    var blob = new Blob([window._nfsExportedConfig], { type: 'application/json' });
+                    var url  = URL.createObjectURL(blob);
+                    var a    = document.createElement('a');
+                    a.href     = url;
+                    a.download = 'custom-nfs-shares.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                });
+            }, 100);
+        } else {
+            showError(response.error || '_(Export failed)_');
+        }
+    }, 'json');
+}
+
+function nfsImportConfig() {
+    swal({
+        title:             '_(Import Configuration)_',
+        text:              '<textarea id="nfsImportJson" style="width:100%;height:200px;"'
+                           + ' placeholder="_(Paste JSON configuration here)_"></textarea>'
+                           + '<br><button type="button" class="btn" id="nfsImportFileBtn"'
+                           + ' style="margin-top:10px">_(Import from File)_</button>',
+        html:              true,
+        showCancelButton:  true,
+        confirmButtonText: '_(Import)_',
+        cancelButtonText:  '_(Cancel)_',
+        closeOnConfirm:    false,
+        allowOutsideClick: false
+    }, function (confirmed) {
+        if (!confirmed) { return; }
+        var content = $('#nfsImportJson').val();
+        if (!content) {
+            swal.showInputError('_(Please paste a configuration or use Import from File)_');
+            return false;
+        }
+        nfsDoImport(content);
+    });
+
+    setTimeout(function () {
+        $('#nfsImportFileBtn').on('click', function () {
+            var $file = $('<input type="file" accept=".json" style="display:none">');
+            $('body').append($file);
+            $file.on('change', function (e) {
+                var file = e.target.files[0];
+                if (file) {
+                    var reader = new FileReader();
+                    reader.onload = function (ev) {
+                        var content = ev.target.result;
+                        $('#nfsImportJson').val(content);
+                        nfsDoImport(content);
+                    };
+                    reader.readAsText(file);
+                }
+                $file.remove();
+            });
+            $file.click();
+        });
+    }, 100);
+}
+
+function nfsDoImport(content) {
+    try { JSON.parse(content); } catch (err) {
+        try { swal.showInputError('_(Invalid JSON format)_'); } catch (e) { /* modal may be closed */ }
+        showError('_(Invalid JSON format)_');
+        return;
+    }
+    $.post('/plugins/custom.nfs.shares/api.php', {
+        action: 'importConfig',
+        config: content
+    }, function (response) {
+        if (response.success) {
+            try { swal.close(); } catch (e) { /* ignore */ }
+            if (response.warning) {
+                showWarning('_(Config imported — )_' + response.warning);
+            } else {
+                showSuccess('_(Configuration imported successfully)_');
+            }
+            setTimeout(function () { location.reload(); }, 1200);
+        } else {
+            var msg = response.error || '_(Import failed)_';
+            try { swal.showInputError(msg); } catch (e) { /* ignore */ }
+            showError(msg);
+        }
+    }, 'json').fail(function (xhr) {
+        var msg = '_(Import failed)_';
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r && r.error) { msg = r.error; }
+        } catch (e) { msg = '_(Server error)_: ' + xhr.status; }
+        try { swal.showInputError(msg); } catch (e) { /* ignore */ }
+        showError(msg);
+    });
+}
+</script>

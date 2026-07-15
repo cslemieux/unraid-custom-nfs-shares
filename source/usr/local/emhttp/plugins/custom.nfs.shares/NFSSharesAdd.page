@@ -1,0 +1,9 @@
+Title="Add NFS Export"
+Tag="plus"
+Markdown="false"
+Eval="true"
+---
+<?php
+$docroot = $docroot ?? $_SERVER['DOCUMENT_ROOT'] ?: '/usr/local/emhttp';
+eval('?>'.parse_file("$docroot/plugins/custom.nfs.shares/include/ShareForm.php"));
+?>

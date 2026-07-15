@@ -1,0 +1,11 @@
+# PHPStan config for the public custom.nfs.shares repo.
+# In the public repo the NFS plugin is the only code, so no scoped/split
+# config is needed (unlike the private monorepo, where SMB+NFS global
+# function names collide in single-pass analysis).
+parameters:
+    level: 8
+    paths:
+        - source/
+    scanFiles:
+        - phpstan-stubs.php
+    reportUnmatchedIgnoredErrors: false

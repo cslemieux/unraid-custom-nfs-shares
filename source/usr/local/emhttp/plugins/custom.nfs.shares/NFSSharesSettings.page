@@ -1,0 +1,242 @@
+Title="NFS Settings"
+Tag="cog"
+Markdown="false"
+Eval="true"
+---
+<?php
+
+/*
+ * custom.nfs.shares — Settings page (task 6.3)
+ *
+ * Plugin enable, backup retention, menu placement, import/export, backup
+ * management, NFS status panel (AC-NFS-10.1, 11.1, 13.1, 14.1, 14.2).
+ */
+
+require_once '/usr/local/emhttp/plugins/custom.nfs.shares/include/lib.php';
+
+$settings = loadSettings();
+$backups = listBackups();
+$serviceStatus = getNfsServiceStatus();
+$exportStatus = getExportStatus();
+$nfsInactive = !$serviceStatus['nfs_enabled'] || !$serviceStatus['nfsd_running'];
+?>
+
+<link rel="stylesheet" href="/plugins/custom.nfs.shares/css/nfs.css">
+<link rel="stylesheet" href="/plugins/custom.nfs.shares/css/feedback.css">
+<script src="/plugins/custom.nfs.shares/js/feedback.js"></script>
+
+<?php if ($nfsInactive): ?>
+<div class="nfs-warning-banner" style="background: var(--orange-500, #f0a020); color: var(--black, #000); padding: 12px 16px; border-radius: 4px; margin-bottom: 16px;">
+    <i class="fa fa-exclamation-triangle"></i>
+    <strong>_(NFS service is not running)_</strong> —
+    _(Exports defined here will NOT take effect until NFS is enabled in)_
+    <a href="/Settings/NFS">_(Settings > NFS)_</a>.
+    _(The plugin only publishes export definitions; it never starts or stops the NFS service.)_
+</div>
+<?php endif; ?>
+
+<div markdown="1" class="shade">
+
+### _(Plugin Settings)_
+
+<form id="nfsSettingsForm" method="POST">
+
+_(Enable plugin)_:
+: <select name="ENABLE" size="1">
+    <?= mk_option($settings['ENABLE'], 'yes', _('Yes')) ?>
+    <?= mk_option($settings['ENABLE'], 'no', _('No')) ?>
+  </select>
+
+_(Backup retention (count))_:
+: <input type="number" name="RETENTION" value="<?= htmlspecialchars($settings['RETENTION'], ENT_QUOTES, 'UTF-8') ?>" min="1" max="100" class="narrow">
+
+_(Show in top menu bar)_:
+: <select name="MENU_PLACEMENT" size="1">
+    <?= mk_option($settings['MENU_PLACEMENT'], 'topbar', _('Yes (Tasks menu)')) ?>
+    <?= mk_option($settings['MENU_PLACEMENT'], 'settings', _('No (Settings > User Utilities)')) ?>
+  </select>
+
+<span class="inline-flex flex-row items-center gap-2">
+  <input type="submit" value="_(Apply)_">
+</span>
+</form>
+
+</div>
+
+<div markdown="1" class="shade">
+
+### _(NFS Status)_
+
+| _(Check)_ | _(State)_ |
+|-----------|-----------|
+| _(NFS init script present)_ | <?= $serviceStatus['nfs_enabled'] ? '<span class="green-text">✓</span>' : '<span class="red-text">✗</span>' ?> |
+| _(nfsd running)_ | <?= $serviceStatus['nfsd_running'] ? '<span class="green-text">✓</span>' : '<span class="red-text">✗</span>' ?> |
+| _(RPC portmapper responding)_ | <?= $serviceStatus['rpcinfo_ok'] ? '<span class="green-text">✓</span>' : '<span class="red-text">✗</span>' ?> |
+
+#### _(Kernel exports (exportfs -v))_
+<pre class="nfs-status-panel"><?= htmlspecialchars($exportStatus['exports'], ENT_QUOTES, 'UTF-8') ?: _('(no output)') ?></pre>
+
+#### _(mountd export list (showmount -e localhost))_
+<pre class="nfs-status-panel"><?= htmlspecialchars($exportStatus['showmount'], ENT_QUOTES, 'UTF-8') ?: _('(no output)') ?></pre>
+
+#### _(Registered RPC services (rpcinfo -p localhost))_
+<pre class="nfs-status-panel"><?= htmlspecialchars($exportStatus['rpcinfo'], ENT_QUOTES, 'UTF-8') ?: _('(no output)') ?></pre>
+
+</div>
+
+<div markdown="1" class="shade">
+
+### _(Import / Export)_
+
+<span class="inline-flex flex-row items-center gap-2 buttons-spaced">
+  <input type="button" value="_(Export Config)_" onclick="nfsExportConfig()">
+  <input type="button" value="_(Import Config)_" onclick="nfsShowImport()">
+</span>
+
+<div id="nfsImportArea" style="display:none; margin-top: 10px;">
+  <textarea id="nfsImportJson" rows="8" style="width: 100%;" placeholder='_(Paste exported JSON here)_'></textarea>
+  <span class="inline-flex flex-row items-center gap-2">
+    <input type="button" value="_(Import)_" onclick="nfsDoImport()">
+    <input type="button" value="_(Cancel)_" onclick="$('#nfsImportArea').hide()">
+  </span>
+</div>
+
+</div>
+
+<div markdown="1" class="shade">
+
+### _(Backups)_
+
+<span class="inline-flex flex-row items-center gap-2">
+  <input type="button" value="_(Create Backup Now)_" onclick="nfsCreateBackup()">
+</span>
+
+<table class="nfs-backups-table" style="width: 100%; margin-top: 10px;">
+<thead>
+  <tr><th>_(File)_</th><th>_(Date)_</th><th>_(Shares)_</th><th>_(Size)_</th><th>_(Actions)_</th></tr>
+</thead>
+<tbody>
+<?php if (count($backups) === 0): ?>
+  <tr><td colspan="5">_(No backups yet)_</td></tr>
+<?php else: ?>
+<?php foreach ($backups as $backup): ?>
+  <tr>
+    <td><?= htmlspecialchars($backup['filename'], ENT_QUOTES, 'UTF-8') ?></td>
+    <td><?= htmlspecialchars($backup['date'], ENT_QUOTES, 'UTF-8') ?></td>
+    <td><?= (int)$backup['shares'] ?></td>
+    <td><?= (int)$backup['size'] ?> B</td>
+    <td>
+      <input type="button" value="_(Restore)_" onclick="nfsRestoreBackup('<?= htmlspecialchars($backup['filename'], ENT_QUOTES, 'UTF-8') ?>')">
+      <input type="button" value="_(Delete)_" onclick="nfsDeleteBackup('<?= htmlspecialchars($backup['filename'], ENT_QUOTES, 'UTF-8') ?>')">
+    </td>
+  </tr>
+<?php endforeach; ?>
+<?php endif; ?>
+</tbody>
+</table>
+
+</div>
+
+<script>
+$(function() {
+    var API = '/plugins/custom.nfs.shares/api.php';
+
+    // Settings form — AJAX save, then reload so Cond-gated menu updates.
+    $('#nfsSettingsForm').on('submit', function(e) {
+        e.preventDefault();
+        $.post(API + '?action=saveSettings', $(this).serialize(), function(response) {
+            if (response.success) {
+                showSuccess('_(Settings saved)_');
+                setTimeout(function() { location.reload(); }, 800);
+            } else {
+                showError(response.error || '_(Failed to save settings)_');
+            }
+        }, 'json').fail(function() { showError('_(Request failed)_'); });
+    });
+
+    window.nfsExportConfig = function() {
+        $.get(API + '?action=exportConfig', function(response) {
+            if (!response.success) { showError(response.error); return; }
+            var blob = new Blob([JSON.stringify(response.config, null, 2)], { type: 'application/json' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'custom-nfs-shares-config.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }, 'json');
+    };
+
+    window.nfsShowImport = function() { $('#nfsImportArea').show(); };
+
+    window.nfsDoImport = function() {
+        var json = $('#nfsImportJson').val();
+        if (!json) { showError('_(Paste the exported JSON first)_'); return; }
+        $.post(API + '?action=importConfig', { config: json }, function(response) {
+            if (response.success) {
+                showSuccess(response.warning ? '_(Imported with warning:)_ ' + response.warning : '_(Configuration imported)_');
+                setTimeout(function() { location.reload(); }, 1000);
+            } else {
+                showError(response.error || '_(Import failed)_');
+            }
+        }, 'json').fail(function(xhr) {
+            var msg = '_(Import failed)_';
+            try { msg = JSON.parse(xhr.responseText).error || msg; } catch (err) { /* keep default */ }
+            showError(msg);
+        });
+    };
+
+    window.nfsCreateBackup = function() {
+        $.post(API + '?action=createBackup', {}, function(response) {
+            if (response.success) {
+                showSuccess('_(Backup created:)_ ' + response.filename);
+                setTimeout(function() { location.reload(); }, 800);
+            } else {
+                showError(response.error || '_(Backup failed)_');
+            }
+        }, 'json');
+    };
+
+    window.nfsRestoreBackup = function(filename) {
+        swal({
+            title: '_(Restore backup)_?',
+            text: '_(This will replace the current shares and reload NFS exports.)_',
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '_(Restore)_',
+            cancelButtonText: '_(Cancel)_'
+        }, function(confirmed) {
+            if (!confirmed) { return; }
+            $.post(API + '?action=restoreBackup', { filename: filename }, function(response) {
+                if (response.success) {
+                    showSuccess('_(Backup restored)_');
+                    setTimeout(function() { location.reload(); }, 800);
+                } else {
+                    showError(response.error || '_(Restore failed)_');
+                }
+            }, 'json');
+        });
+    };
+
+    window.nfsDeleteBackup = function(filename) {
+        swal({
+            title: '_(Delete backup)_?',
+            text: filename,
+            type: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '_(Delete)_',
+            cancelButtonText: '_(Cancel)_'
+        }, function(confirmed) {
+            if (!confirmed) { return; }
+            $.post(API + '?action=deleteBackup', { filename: filename }, function(response) {
+                if (response.success) {
+                    showSuccess('_(Backup deleted)_');
+                    setTimeout(function() { location.reload(); }, 800);
+                } else {
+                    showError(response.error || '_(Delete failed)_');
+                }
+            }, 'json');
+        });
+    };
+});
+</script>

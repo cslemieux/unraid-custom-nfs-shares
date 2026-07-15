@@ -1,0 +1,153 @@
+<?xml version='1.0' standalone='yes'?>
+
+<!DOCTYPE PLUGIN [
+<!ENTITY name      "custom.nfs.shares">
+<!ENTITY author    "cslemieux">
+<!ENTITY version   "2026.07.15">
+<!ENTITY launch    "NFSShares">
+<!ENTITY github    "cslemieux/unraid-custom-nfs-shares">
+<!ENTITY pluginURL "https://raw.githubusercontent.com/&github;/main/&name;.plg">
+<!ENTITY md5       "b18c5f17f358f640918e954a248fd214">
+<!ENTITY plugdir   "/usr/local/emhttp/plugins/&name;">
+<!ENTITY plgPATH   "/boot/config/plugins/&name;">
+]>
+
+<!--
+  custom.nfs.shares - Unraid plugin
+  Manages NFS exports through the Unraid WebGUI via the standard
+  /etc/exports.d/ drop-in mechanism (exports(5), exportfs -ra).
+
+  md5 entity: placeholder value. build-nfs.sh computes the real checksum
+  from the built .txz and prints the value to paste here before publishing.
+  A placeholder md5 intentionally fails the Unraid checksum gate so no
+  install proceeds until the real digest is inserted.
+
+  GitHub: https://github.com/cslemieux/unraid-custom-nfs-shares
+-->
+<PLUGIN name="&name;"
+        author="&author;"
+        version="&version;"
+        launch="&launch;"
+        pluginURL="&pluginURL;"
+        min="6.12.0"
+        support="https://forums.unraid.net/forum/61-plugin-support/"
+        icon="share-alt">
+
+<CHANGES>
+##&name;
+
+###2026.07.15
+- Initial release of Custom NFS Shares plugin
+- Manage NFS exports through the Unraid WebGUI without editing /etc/exports
+- Exports written to /etc/exports.d/custom-nfs-shares.exports (isolated from Unraid-managed /etc/exports)
+- Conservative defaults: rw, sync, no_subtree_check, root_squash
+- Atomic write with rollback safety: failed exportfs -ra restores last-known-good drop-in
+- exports(5) path encoding: double-quoting for spaces, backslash-octal for non-ASCII (NOT shell quoting)
+- Config-injection hardening: newlines/control chars stripped from all share fields
+- TOCTOU-hardened path validation: realpath() confirmed under /mnt/
+- Timestamped backups with configurable retention and JSON import/export
+- NFS status panel: exportfs -v, showmount -e localhost, rpcinfo -p localhost
+- Warning displayed when NFS service is disabled in Unraid Settings
+- Configurable menu placement: top-bar tab (default) or Settings/Utilities
+- Sibling plugin to custom.smb.shares; reuses CRUD/config/backup/test scaffolding
+</CHANGES>
+
+<!-- Pre-install: clean up stale package files from previous versions -->
+<FILE Run="/bin/bash">
+<INLINE>
+echo "Cleaning up old versions of &name;..."
+rm -f $(ls &plgPATH;/&name;*.txz 2>/dev/null | grep -v '&version;')
+rm -f $(ls &plgPATH;/&name;*.md5 2>/dev/null | grep -v '&version;')
+</INLINE>
+</FILE>
+
+<!-- Download and MD5-verify the plugin package -->
+<FILE Name="&plgPATH;/&name;-&version;-x86_64-1.txz">
+<URL>https://github.com/&github;/releases/download/v&version;/&name;-&version;-x86_64-1.txz</URL>
+<MD5>&md5;</MD5>
+</FILE>
+
+<!-- Install: removepkg + installpkg (NOT upgradepkg).
+     upgradepkg has a bug where it can report "newer version already
+     installed" incorrectly; removepkg + installpkg guarantees a clean
+     install (same approach as custom.smb.shares). -->
+<FILE Run="/bin/bash">
+<INLINE>
+removepkg &name; 2>/dev/null || true
+installpkg &plgPATH;/&name;-&version;-x86_64-1.txz
+# Strip stray macOS AppleDouble metadata files (._*) from the runtime dir.
+find &plugdir; -type f -name "._*" -delete 2>/dev/null || true
+</INLINE>
+</FILE>
+
+<!-- Post-install: create runtime/config dirs and initialize default files -->
+<FILE Run="/bin/bash">
+<INLINE>
+# Ensure /etc/exports.d exists. exportfs reads *.exports files from this
+# directory; it may not be present on fresh Unraid installs.
+mkdir -p /etc/exports.d
+
+# Create plugin config directory structure on the flash drive.
+mkdir -p &plgPATH;
+mkdir -p &plgPATH;/backups
+
+# Initialize shares.json with an empty array if not present.
+if [ ! -f "&plgPATH;/shares.json" ]; then
+  echo "[]" > &plgPATH;/shares.json
+fi
+
+# Initialize settings.cfg with conservative defaults if not present.
+# ENABLE=yes              -- plugin is active
+# RETENTION=10            -- keep the 10 most recent backups
+# MENU_PLACEMENT=topbar   -- show as top-bar tab (alternative: settings)
+if [ ! -f "&plgPATH;/settings.cfg" ]; then
+  {
+    echo 'ENABLE="yes"'
+    echo 'RETENTION="10"'
+    echo 'MENU_PLACEMENT="topbar"'
+  } > &plgPATH;/settings.cfg
+fi
+
+chmod 644 &plgPATH;/shares.json
+chmod 644 &plgPATH;/settings.cfg
+
+echo ""
+echo "----------------------------------------------------"
+echo " &name; has been installed."
+echo " Version: &version;"
+echo " Access via: Tasks > NFS Shares"
+echo " NOTE: NFS must be enabled in Settings > NFS for"
+echo " exports to take effect."
+echo "----------------------------------------------------"
+echo ""
+</INLINE>
+</FILE>
+
+<!-- Remove script: uninstall package, remove runtime drop-in, preserve config -->
+<FILE Run="/bin/bash" Method="remove">
+<INLINE>
+echo "Removing &name;..."
+
+removepkg &name;-&version;-x86_64-1 2>/dev/null || true
+
+# Remove the runtime NFS exports drop-in so exportfs stops serving these
+# exports after plugin removal, then re-sync the kernel export table.
+rm -f /etc/exports.d/custom-nfs-shares.exports
+exportfs -ra 2>/dev/null || true
+
+# Remove the runtime plugin directory (RAM filesystem).
+rm -rf &plugdir;
+
+# Configuration files in &plgPATH; are intentionally preserved so the
+# user's share definitions survive a reinstall.
+echo ""
+echo "----------------------------------------------------"
+echo " &name; has been removed."
+echo " Configuration preserved in &plgPATH;"
+echo " To remove all config: rm -rf &plgPATH;"
+echo "----------------------------------------------------"
+echo ""
+</INLINE>
+</FILE>
+
+</PLUGIN>

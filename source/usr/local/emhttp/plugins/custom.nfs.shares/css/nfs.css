@@ -1,0 +1,108 @@
+/**
+ * Custom NFS Shares — Plugin-specific styles
+ *
+ * CSS variables only (no hard-coded colours) so the plugin adapts to both
+ * Unraid's light and dark themes without overrides.
+ */
+
+/* ── Disabled-plugin banner ───────────────────────────────────────────────── */
+.disabled-banner {
+    background:    var(--orange-bg-color, #f0ad4e);
+    color:         var(--orange-fg-color, #000);
+    padding:       10px 15px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+}
+
+.disabled-banner a {
+    color:           var(--orange-fg-color, #000);
+    text-decoration: underline;
+}
+
+/* ── Share list table ─────────────────────────────────────────────────────── */
+.nfs-shares-table {
+    table-layout: fixed;
+    width:        100%;
+}
+
+.share-disabled {
+    opacity: 0.5;
+}
+
+/* ── Risk-warning banners (async / no_root_squash) ────────────────────────── */
+/* Rendered hidden by default; JS reveals them on option change (AC-NFS-15.2) */
+.nfs-warning {
+    margin:        8px 0 4px 0;
+    padding:       10px 14px;
+    border-radius: 3px;
+    background:    var(--shade-bg-color, rgba(0, 0, 0, 0.05));
+    line-height:   1.5;
+}
+
+.nfs-warning-orange {
+    border-left: 4px solid var(--orange-color, #f0ad4e);
+}
+
+.nfs-warning-red {
+    border-left: 4px solid var(--danger-color, #f44336);
+}
+
+/* ── fileTree dropdown (directory picker) ─────────────────────────────────── */
+.nfs-filetree-dropdown {
+    position:      absolute;
+    z-index:       1000;
+    background:    var(--background-color, #fff);
+    border:        1px solid var(--border-color, #ccc);
+    box-shadow:    0 4px 12px rgba(0, 0, 0, 0.4);
+    max-height:    300px;
+    overflow:      auto;
+    border-radius: 4px;
+    padding:       4px 0;
+    width:         400px;
+}
+
+/* ── Validation field error highlight ─────────────────────────────────────── */
+.nfs-field-error {
+    border-color:     var(--danger-color, #f44336) !important;
+    background-color: rgba(244, 67, 54, 0.05);
+}
+
+.nfs-field-error-msg {
+    color:      var(--danger-color, #f44336);
+    font-size:  0.85em;
+    margin-top: 3px;
+    display:    none;
+}
+
+/* ── Status panel (Phase 6 / NFSSharesSettings) ───────────────────────────── */
+.nfs-status-block {
+    font-family:   monospace;
+    font-size:     0.88em;
+    background:    var(--shade-bg-color, rgba(0, 0, 0, 0.05));
+    border:        1px solid var(--border-color, #ccc);
+    border-radius: 3px;
+    padding:       10px;
+    white-space:   pre-wrap;
+    word-break:    break-all;
+    max-height:    260px;
+    overflow-y:    auto;
+}
+
+/* ── Backup list ──────────────────────────────────────────────────────────── */
+.nfs-backup-table {
+    width:         100%;
+    table-layout:  fixed;
+    border-collapse: collapse;
+}
+
+.nfs-backup-table th,
+.nfs-backup-table td {
+    padding:       6px 10px;
+    border-bottom: 1px solid var(--border-color, #ccc);
+    text-align:    left;
+}
+
+.nfs-backup-table th {
+    background: var(--shade-bg-color, rgba(0, 0, 0, 0.05));
+    font-weight: 600;
+}

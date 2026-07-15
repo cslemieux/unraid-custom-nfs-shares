@@ -1,0 +1,20 @@
+# Dependencies
+vendor/
+node_modules/
+
+# Build output
+build-nfs/
+archive-nfs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+._*
+
+# Test artifacts
+.phpunit.result.cache
+coverage/

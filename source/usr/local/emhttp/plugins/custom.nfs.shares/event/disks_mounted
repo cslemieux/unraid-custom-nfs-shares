@@ -1,0 +1,63 @@
+#!/bin/bash
+# custom.nfs.shares — disks_mounted event handler (task 3.5, AC-NFS-05.2)
+#
+# Re-applies the persisted NFS exports drop-in when the Unraid array starts.
+# Bash (not PHP) because the operation is two sequential shell commands with
+# no PHP dependency at array-start time.
+#
+# Behavior:
+#   1. Read the plugin-enabled flag from settings.cfg; exit 0 silently when
+#      the flag is absent or not "yes" (mirrors the SMB handler's
+#      isPluginEnabled() guard — absent settings default to enabled there,
+#      but an explicit ENABLE line that is not "yes" disables).
+#   2. Copy the persistent exports drop-in from flash to /etc/exports.d/
+#      using an atomic temp+rename write so a partial failure can never
+#      leave a corrupt drop-in at the runtime location.
+#   3. Run exportfs -ra and log the outcome via logger.
+
+PLG_PATH="/boot/config/plugins/custom.nfs.shares"
+SETTINGS="${PLG_PATH}/settings.cfg"
+PERSISTENT="${PLG_PATH}/custom-nfs-shares.exports"
+RUNTIME="/etc/exports.d/custom-nfs-shares.exports"
+
+# 1. Enabled guard: if settings.cfg has an ENABLE line, it must be "yes".
+#    Absent file or absent key defaults to enabled (matches lib.php).
+if [ -f "$SETTINGS" ]; then
+  ENABLE_LINE=$(grep -E '^ENABLE=' "$SETTINGS" 2>/dev/null | head -1)
+  if [ -n "$ENABLE_LINE" ]; then
+    case "$ENABLE_LINE" in
+      ENABLE=\"yes\"|ENABLE=yes) ;;  # enabled — continue
+      *) exit 0 ;;                   # explicitly disabled — silent no-op
+    esac
+  fi
+fi
+
+# 2. Nothing to apply if no persisted exports exist yet.
+if [ ! -f "$PERSISTENT" ]; then
+  exit 0
+fi
+
+# 3. Publish the persisted drop-in to the runtime location using an atomic
+#    temp+rename write.  This ensures that a partial failure (e.g. disk-full
+#    during the write) can never leave a corrupt or truncated file at
+#    $RUNTIME — matching the atomic-write discipline used in lib.php.
+mkdir -p /etc/exports.d
+RUNTIME_TMP="${RUNTIME}.tmp.$$"
+if ! cp "$PERSISTENT" "$RUNTIME_TMP"; then
+  logger -t custom.nfs.shares "failed to write temp exports file: ${RUNTIME_TMP}"
+  exit 1
+fi
+if ! mv "$RUNTIME_TMP" "$RUNTIME"; then
+  rm -f "$RUNTIME_TMP"
+  logger -t custom.nfs.shares "failed to rename temp exports file into place: ${RUNTIME}"
+  exit 1
+fi
+
+OUTPUT=$(exportfs -ra 2>&1)
+if [ $? -eq 0 ]; then
+  logger -t custom.nfs.shares "exports applied"
+else
+  logger -t custom.nfs.shares "exports reload failed: $OUTPUT"
+fi
+
+exit 0
